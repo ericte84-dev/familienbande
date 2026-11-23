@@ -1,0 +1,42 @@
+name: Erinnerungen zustellen
+
+# Sites hat keinen Cron. Dieser Lauf ruft alle fünf Minuten den Zustell-Endpunkt
+# auf; der Schlüssel kommt aus dem Repository-Secret PUSH_TICK_KEY.
+#
+# Hinweise:
+# - GitHub führt geplante Läufe nur best effort aus: Verzögerungen von einigen
+#   Minuten sind normal, deshalb nicht auf die Minute genau planen.
+# - Nach 60 Tagen ohne Repository-Aktivität pausiert GitHub den Zeitplan.
+# - "Run workflow" (workflow_dispatch) löst einen Lauf sofort aus, z. B. zum Test.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: push-reminders
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fällige Erinnerungen auslösen
+        env:
+          PUSH_TICK_KEY: ${{ secrets.PUSH_TICK_KEY }}
+          TICK_URL: https://familienbande-01asap.freebuff.site/api/push/tick
+        run: |
+          if [ -z "$PUSH_TICK_KEY" ]; then
+            echo "Secret PUSH_TICK_KEY fehlt (Settings -> Secrets and variables -> Actions)." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 --max-time 30 \
+            -X POST "$TICK_URL" \
+            -H "x-push-key: $PUSH_TICK_KEY" \
+            -H "Content-Type: application/json"
